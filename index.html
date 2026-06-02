@@ -131,20 +131,39 @@ body {
   justify-content: center;
   font-weight: 700;
   border-radius: 4px;
-  transition: transform 120ms ease;
+  transition: transform 120ms ease, box-shadow 150ms ease-out;
   z-index: 1;
 }
-.tile.merged {
-  animation: pop 200ms ease;
+
+/* Merge animation: bounce dramatis + glow ring */
+.tile.tile-merged {
+  animation: merge-pop 300ms ease, merge-glow 400ms ease;
 }
 .tile.new-tile {
   animation: appear 200ms ease;
 }
-@keyframes pop {
+
+/* Bounce: scale 1 → 1.25 → 0.95 → 1 */
+@keyframes merge-pop {
   0%   { transform: scale(1); }
-  50%  { transform: scale(1.15); }
+  40%  { transform: scale(1.25); }
+  70%  { transform: scale(0.95); }
   100% { transform: scale(1); }
 }
+
+/* Glow ring: pulse outward lalu fade. Warna dari --glow-color */
+@keyframes merge-glow {
+  0%   { box-shadow: 0 0 0 0 var(--glow-color, rgba(237, 194, 46, 0.8)); }
+  30%  { box-shadow: 0 0 0 8px var(--glow-color, rgba(237, 194, 46, 0.6)); }
+  100% { box-shadow: 0 0 0 20px transparent; }
+}
+
+/* Slide shadow: trail berlawanan arah gerakan */
+.tile.slide-left  { box-shadow: inset 6px 0 8px -2px rgba(0,0,0,0.4); }
+.tile.slide-right { box-shadow: inset -6px 0 8px -2px rgba(0,0,0,0.4); }
+.tile.slide-up    { box-shadow: inset 0 6px 8px -2px rgba(0,0,0,0.4); }
+.tile.slide-down  { box-shadow: inset 0 -6px 8px -2px rgba(0,0,0,0.4); }
+
 @keyframes appear {
   0%   { transform: scale(0); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
@@ -431,10 +450,21 @@ function renderBoard(mergedTiles, newTiles) {
         tile.textContent = val;
 
         const key = r + ',' + c;
-        if (mergedTiles.has(key)) tile.classList.add('merged');
         if (newTiles.has(key)) tile.classList.add('new-tile');
 
         cell.appendChild(tile);
+
+        // Animasi merge: tambah class tile-merged + glow color
+        if (mergedTiles.has(key)) {
+          tile.classList.add('tile-merged');
+          // Ambil warna background tile untuk glow yang sesuai
+          const bgColor = getComputedStyle(tile).backgroundColor;
+          tile.style.setProperty('--glow-color', bgColor);
+          // Auto-remove class setelah animasi selesai
+          tile.addEventListener('animationend', function removeMerge() {
+            tile.classList.remove('tile-merged');
+          }, { once: true });
+        }
       }
       boardEl.appendChild(cell);
     }
@@ -507,8 +537,8 @@ function checkGameState() {
   }
 }
 
-/** Jalankan satu langkah (move) */
-function doMove(moveFn) {
+/** Jalankan satu langkah (move). direction: 'left'|'right'|'up'|'down' */
+function doMove(moveFn, direction) {
   if (gameOver) return;
   if (gameWon && !keepPlaying) return;
 
@@ -546,6 +576,27 @@ function doMove(moveFn) {
   }
 
   renderBoard(mergedTiles, newTiles);
+
+  // Tambah slide shadow ke semua tile yang bukan merge/new-tile
+  if (direction) {
+    const slideClass = 'slide-' + direction;
+    const tiles = boardEl.querySelectorAll('.tile');
+    tiles.forEach(tile => {
+      // Skip tile yang sedang merge atau baru spawn (animasi sendiri)
+      if (tile.classList.contains('tile-merged') || tile.classList.contains('new-tile')) return;
+      tile.classList.add(slideClass);
+      // Auto-remove setelah transisi box-shadow selesai
+      tile.addEventListener('transitionend', function removeSlide(e) {
+        if (e.propertyName === 'box-shadow') {
+          tile.classList.remove(slideClass);
+          tile.removeEventListener('transitionend', removeSlide);
+        }
+      });
+      // Fallback: hapus setelah 200ms kalau transitionend gak fire
+      setTimeout(() => tile.classList.remove(slideClass), 200);
+    });
+  }
+
   checkGameState();
 }
 
@@ -597,15 +648,15 @@ function undo() {
 /** Tangani input keyboard */
 function handleKey(e) {
   const keyMap = {
-    'ArrowLeft':  moveLeft,
-    'ArrowRight': moveRight,
-    'ArrowUp':    moveUp,
-    'ArrowDown':  moveDown
+    'ArrowLeft':  { fn: moveLeft,  dir: 'left'  },
+    'ArrowRight': { fn: moveRight, dir: 'right' },
+    'ArrowUp':    { fn: moveUp,    dir: 'up'    },
+    'ArrowDown':  { fn: moveDown,  dir: 'down'  }
   };
-  const fn = keyMap[e.key];
-  if (fn) {
+  const entry = keyMap[e.key];
+  if (entry) {
     e.preventDefault();
-    doMove(fn);
+    doMove(entry.fn, entry.dir);
   }
 }
 
@@ -630,9 +681,9 @@ function handleTouchEnd(e) {
   if (Math.max(absDx, absDy) < threshold) return; // terlalu pendek
 
   if (absDx > absDy) {
-    doMove(dx > 0 ? moveRight : moveLeft);
+    doMove(dx > 0 ? moveRight : moveLeft, dx > 0 ? 'right' : 'left');
   } else {
-    doMove(dy > 0 ? moveDown : moveUp);
+    doMove(dy > 0 ? moveDown : moveUp, dy > 0 ? 'down' : 'up');
   }
 }
 
