@@ -514,22 +514,23 @@ function spawnExplosion(tileEl, value) {
     var particle = document.createElement('div');
     particle.style.cssText =
       'position:absolute;border-radius:50%;pointer-events:none;z-index:20;' +
-      'left:' + (centerX - 2) + 'px;' +
-      'top:' + (centerY - 2) + 'px;' +
-      'width:6px;height:6px;' +
+      'left:' + (centerX - 5) + 'px;' +
+      'top:' + (centerY - 5) + 'px;' +
+      'width:10px;height:10px;' +
       'background:' + color + ';' +
-      'box-shadow:0 0 4px ' + color + ';';
+      'box-shadow:0 0 8px ' + color + ', 0 0 16px ' + color + ';';
     boardWrapper.appendChild(particle);
 
-    var endX = centerX + dir.dx * flyDistance;
-    var endY = centerY + dir.dy * flyDistance;
+    var flyDist = tileSize * 1.2;
+    var endX = dir.dx * flyDist;
+    var endY = dir.dy * flyDist;
 
     particle.animate([
       { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-      { transform: 'translate(' + (endX - centerX) + 'px, ' + (endY - centerY) + 'px) scale(0.2)', opacity: 0 }
-    ], { duration: 500, easing: 'ease-out', fill: 'forwards' });
+      { transform: 'translate(' + endX + 'px, ' + endY + 'px) scale(0)', opacity: 0 }
+    ], { duration: 600, easing: 'ease-out', fill: 'forwards' });
 
-    setTimeout(function() { particle.remove(); }, 550);
+    setTimeout(function() { particle.remove(); }, 650);
   });
 
   // --- Spawn shockwave ring ---
