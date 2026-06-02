@@ -512,37 +512,43 @@ function spawnExplosion(tileEl, value) {
   // --- Spawn 8 partikel ---
   directions.forEach(function(dir) {
     var particle = document.createElement('div');
-    particle.className = 'particle';
     particle.style.cssText =
-      'left:' + centerX + 'px;' +
-      'top:' + centerY + 'px;' +
-      'width:4px;height:4px;' +
+      'position:absolute;border-radius:50%;pointer-events:none;z-index:20;' +
+      'left:' + (centerX - 2) + 'px;' +
+      'top:' + (centerY - 2) + 'px;' +
+      'width:6px;height:6px;' +
       'background:' + color + ';' +
-      '--dx:' + (dir.dx * flyDistance) + 'px;' +
-      '--dy:' + (dir.dy * flyDistance) + 'px;';
+      'box-shadow:0 0 4px ' + color + ';';
     boardWrapper.appendChild(particle);
 
-    // Auto-remove dari DOM setelah animasi selesai (cegah memory leak)
-    particle.addEventListener('animationend', function() {
-      particle.remove();
-    });
+    var endX = centerX + dir.dx * flyDistance;
+    var endY = centerY + dir.dy * flyDistance;
+
+    particle.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      { transform: 'translate(' + (endX - centerX) + 'px, ' + (endY - centerY) + 'px) scale(0.2)', opacity: 0 }
+    ], { duration: 500, easing: 'ease-out', fill: 'forwards' });
+
+    setTimeout(function() { particle.remove(); }, 550);
   });
 
   // --- Spawn shockwave ring ---
   var ring = document.createElement('div');
-  ring.className = 'shockwave-ring';
   ring.style.cssText =
+    'position:absolute;border:2px solid ' + color + ';border-radius:50%;pointer-events:none;z-index:19;' +
     'left:' + centerX + 'px;' +
     'top:' + centerY + 'px;' +
     'width:' + tileSize + 'px;' +
     'height:' + tileSize + 'px;' +
-    'border-color:' + color + ';';
+    'transform:translate(-50%,-50%);';
   boardWrapper.appendChild(ring);
 
-  // Auto-remove dari DOM setelah animasi selesai
-  ring.addEventListener('animationend', function() {
-    ring.remove();
-  });
+  ring.animate([
+    { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.7 },
+    { transform: 'translate(-50%,-50%) scale(2.5)', opacity: 0 }
+  ], { duration: 400, easing: 'ease-out', fill: 'forwards' });
+
+  setTimeout(function() { ring.remove(); }, 450);
 
   // --- Screen shake untuk merge tile besar (128+) ---
   if (value >= 128) {
