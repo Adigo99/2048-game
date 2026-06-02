@@ -560,6 +560,9 @@ function renderBoard(mergedTiles, newTiles) {
   mergedTiles = mergedTiles || new Set();
   newTiles = newTiles || new Set();
 
+  // Simpan info tile yang perlu explosion (spawn setelah DOM ready)
+  const explosionTiles = [];
+
   boardEl.innerHTML = '';
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 4; c++) {
@@ -577,23 +580,28 @@ function renderBoard(mergedTiles, newTiles) {
 
         cell.appendChild(tile);
 
-        // Animasi merge: tambah class tile-merged + glow color + efek ledakan
+        // Animasi merge: tambah class tile-merged + glow color
         if (mergedTiles.has(key)) {
           tile.classList.add('tile-merged');
-          // Ambil warna background tile untuk glow yang sesuai
-          const bgColor = getComputedStyle(tile).backgroundColor;
-          tile.style.setProperty('--glow-color', bgColor);
           // Auto-remove class setelah animasi selesai
           tile.addEventListener('animationend', function removeMerge() {
             tile.classList.remove('tile-merged');
           }, { once: true });
-
-          // Spawn efek ledakan combo (partikel + shockwave ring)
-          spawnExplosion(tile, val);
+          // Simpan untuk explosion nanti
+          explosionTiles.push({ el: tile, val: val });
         }
       }
       boardEl.appendChild(cell);
     }
+  }
+
+  // Spawn explosion setelah render selesai (tile sudah di DOM, browser sudah layout)
+  if (explosionTiles.length > 0) {
+    requestAnimationFrame(function() {
+      explosionTiles.forEach(function(item) {
+        spawnExplosion(item.el, item.val);
+      });
+    });
   }
 }
 
