@@ -916,6 +916,44 @@ function handleTouchEnd(e) {
   }
 }
 
+/** Tangani drag mouse (sama seperti touch swipe) */
+let mouseStartX = 0;
+let mouseStartY = 0;
+let mouseDragging = false;
+
+function handleMouseDown(e) {
+  // Hanya tombol kiri (primary button)
+  if (e.button !== 0) return;
+  mouseStartX = e.clientX;
+  mouseStartY = e.clientY;
+  mouseDragging = true;
+  // Cegah text selection saat drag
+  e.preventDefault();
+}
+
+function handleMouseUp(e) {
+  if (!mouseDragging) return;
+  mouseDragging = false;
+
+  const dx = e.clientX - mouseStartX;
+  const dy = e.clientY - mouseStartY;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  const threshold = 30;
+
+  if (Math.max(absDx, absDy) < threshold) return; // terlalu pendek
+
+  if (absDx > absDy) {
+    doMove(dx > 0 ? moveRight : moveLeft, dx > 0 ? 'right' : 'left');
+  } else {
+    doMove(dy > 0 ? moveDown : moveUp, dy > 0 ? 'down' : 'up');
+  }
+}
+
+function handleMouseLeave() {
+  mouseDragging = false;
+}
+
 // ===================================================================
 // INIT
 // ===================================================================
@@ -923,6 +961,9 @@ function handleTouchEnd(e) {
 document.addEventListener('keydown', handleKey);
 boardWrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
 boardWrapper.addEventListener('touchend', handleTouchEnd, { passive: true });
+boardWrapper.addEventListener('mousedown', handleMouseDown);
+boardWrapper.addEventListener('mouseup', handleMouseUp);
+boardWrapper.addEventListener('mouseleave', handleMouseLeave);
 document.getElementById('btn-new').addEventListener('click', newGame);
 document.getElementById('btn-undo').addEventListener('click', undo);
 
