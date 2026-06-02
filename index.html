@@ -184,6 +184,50 @@ body {
 .tile-4096 { background: #fe3d6e; color: #fff;     font-size: 20px; }
 .tile-8192 { background: #ff2060; color: #fff;     font-size: 18px; }
 
+/* ===== Combo Explosion Effects ===== */
+
+/* Partikel ledakan — terbang keluar dari tile yang merge */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 20;
+  animation: particle-fly 500ms ease-out forwards;
+}
+
+/* Gunakan CSS custom properties untuk arah terbang (GPU-accelerated via transform) */
+@keyframes particle-fly {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.3); opacity: 0; }
+}
+
+/* Shockwave ring — cincin melingkar yang mengembang */
+.shockwave-ring {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 19;
+  transform: translate(-50%, -50%);
+  animation: shockwave-expand 400ms ease-out forwards;
+}
+
+@keyframes shockwave-expand {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
+
+/* Screen shake ringan — untuk merge tile besar (128+) */
+.board-wrapper.shake {
+  animation: screen-shake 150ms ease;
+}
+
+@keyframes screen-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-2px); }
+  75%      { transform: translateX(2px); }
+}
+
 /* ===== Overlay (win/game-over) ===== */
 .overlay {
   position: absolute;
@@ -430,6 +474,85 @@ function saveUndoState() {
   };
 }
 
+/** Spawn efek ledakan combo saat tile merge.
+ *  @param {HTMLElement} tileEl — elemen tile yang merge
+ *  @param {number} value — nilai tile (2, 4, 8, ...) */
+function spawnExplosion(tileEl, value) {
+  const boardRect = boardWrapper.getBoundingClientRect();
+  const tileRect = tileEl.getBoundingClientRect();
+  // Posisi tengah tile relatif terhadap board wrapper
+  const centerX = tileRect.left + tileRect.width / 2 - boardRect.left;
+  const centerY = tileRect.top + tileRect.height / 2 - boardRect.top;
+  const tileSize = tileRect.width;
+
+  // Mapping warna tile
+  const colorMap = {
+    2: '#f0f0f0', 4: '#e0e0c0', 8: '#f2b179', 16: '#f59563',
+    32: '#f67c5f', 64: '#f65e3b', 128: '#edcf72', 256: '#edcc61',
+    512: '#edc850', 1024: '#edc53f', 2048: '#edc22e', 4096: '#fe3d6e',
+    8192: '#ff2060'
+  };
+  const color = colorMap[value] || '#edc22e';
+
+  // 8 arah terbang: atas, kanan atas, kanan, kanan bawah, bawah, kiri bawah, kiri, kiri atas
+  const SQRT2_2 = Math.SQRT2 / 2; // ≈ 0.707
+  const directions = [
+    { dx: 0,   dy: -1 },            // atas
+    { dx: SQRT2_2, dy: -SQRT2_2 },  // kanan atas
+    { dx: 1,   dy: 0 },             // kanan
+    { dx: SQRT2_2, dy: SQRT2_2 },   // kanan bawah
+    { dx: 0,   dy: 1 },             // bawah
+    { dx: -SQRT2_2, dy: SQRT2_2 },  // kiri bawah
+    { dx: -1,  dy: 0 },             // kiri
+    { dx: -SQRT2_2, dy: -SQRT2_2 }  // kiri atas
+  ];
+
+  const flyDistance = tileSize * 0.7; // jarak terbang proporsional ukuran tile
+
+  // --- Spawn 8 partikel ---
+  directions.forEach(function(dir) {
+    var particle = document.createElement('div');
+    particle.className = 'particle';
+    particle.style.cssText =
+      'left:' + centerX + 'px;' +
+      'top:' + centerY + 'px;' +
+      'width:4px;height:4px;' +
+      'background:' + color + ';' +
+      '--dx:' + (dir.dx * flyDistance) + 'px;' +
+      '--dy:' + (dir.dy * flyDistance) + 'px;';
+    boardWrapper.appendChild(particle);
+
+    // Auto-remove dari DOM setelah animasi selesai (cegah memory leak)
+    particle.addEventListener('animationend', function() {
+      particle.remove();
+    });
+  });
+
+  // --- Spawn shockwave ring ---
+  var ring = document.createElement('div');
+  ring.className = 'shockwave-ring';
+  ring.style.cssText =
+    'left:' + centerX + 'px;' +
+    'top:' + centerY + 'px;' +
+    'width:' + tileSize + 'px;' +
+    'height:' + tileSize + 'px;' +
+    'border-color:' + color + ';';
+  boardWrapper.appendChild(ring);
+
+  // Auto-remove dari DOM setelah animasi selesai
+  ring.addEventListener('animationend', function() {
+    ring.remove();
+  });
+
+  // --- Screen shake untuk merge tile besar (128+) ---
+  if (value >= 128) {
+    boardWrapper.classList.add('shake');
+    boardWrapper.addEventListener('animationend', function removeShake() {
+      boardWrapper.classList.remove('shake');
+    }, { once: true });
+  }
+}
+
 /** Render papan ke DOM */
 function renderBoard(mergedTiles, newTiles) {
   // mergedTiles: Set of "r,c" strings yang baru saja merger
@@ -454,7 +577,7 @@ function renderBoard(mergedTiles, newTiles) {
 
         cell.appendChild(tile);
 
-        // Animasi merge: tambah class tile-merged + glow color
+        // Animasi merge: tambah class tile-merged + glow color + efek ledakan
         if (mergedTiles.has(key)) {
           tile.classList.add('tile-merged');
           // Ambil warna background tile untuk glow yang sesuai
@@ -464,6 +587,9 @@ function renderBoard(mergedTiles, newTiles) {
           tile.addEventListener('animationend', function removeMerge() {
             tile.classList.remove('tile-merged');
           }, { once: true });
+
+          // Spawn efek ledakan combo (partikel + shockwave ring)
+          spawnExplosion(tile, val);
         }
       }
       boardEl.appendChild(cell);
